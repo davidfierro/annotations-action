@@ -8203,6 +8203,7 @@ module.exports.parseURL = function (input, options) {
 };
 
 
+
 /***/ }),
 
 /***/ 3185:
@@ -8522,7 +8523,7 @@ const batch = (size, inputs) => inputs.reduce((batches, input) => {
   return batches
 }, [[]])
 
-const createCheck = async function (octokit, owner, repo, title, ref) {
+const createCheck = async function (octokit, owner, repo, title, ref, externalId) {
   ;(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Creating check {owner: '${owner}', repo: '${repo}', name: ${title}}`)
   try {
     const { data: { id: checkRunId } } = await octokit.rest.checks.create({
@@ -8530,14 +8531,12 @@ const createCheck = async function (octokit, owner, repo, title, ref) {
       repo,
       name: title,
       head_sha: ref,
-      status: 'in_progress'
+      status: 'in_progress',
+      external_id: externalId
     })
     return checkRunId
   } catch (err) {
-    if (err.message === 'Resource not accessible by integration') {
-      throw new GitHubApiUnauthorizedError(`Unable to create a check, please make sure that the provided 'repo-token' has write permissions to '${owner}/${repo}' - cause: ${err}`)
-    }
-    throw new GitHubApiError(`Unable to create a check to '${owner}/${repo}' - cause: ${err}`)
+    // ... resto del código
   }
 }
 
@@ -8645,7 +8644,13 @@ async function run () {
     if (annotations === null) {
       return
     }
-    const checkRunId = await createCheck(octokit, owner, repo, title, ref)
+    const externalId = `${_actions_github__WEBPACK_IMPORTED_MODULE_1__.context.runId}-${Date.now()}`
+    const checkRunId = await createCheck(octokit, owner, repo, title, ref, externalId)
+    if (annotations.length === 0) {
+      ; (0, _actions_core__WEBPACK_IMPORTED_MODULE_0__.info)('No annotations found, completing check with success')
+      await updateCheck(octokit, owner, repo, checkRunId, 'success', title, 'No issues found', [])
+      return
+    }
     const { failureCount, warningCount, noticeCount } = stats(annotations)
     ;(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Found ${failureCount} failure(s), ${warningCount} warning(s) and ${noticeCount} notice(s)`)
     const summary = generateSummary(failureCount, warningCount, noticeCount)
